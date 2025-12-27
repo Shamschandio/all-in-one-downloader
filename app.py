@@ -4,7 +4,7 @@ import os
 import tempfile
 import shutil
 
-# --- 1. ORIGINAL BRANDING ---
+# --- 1. BRANDING ---
 st.set_page_config(page_title="SOCIAL EXPERIMENT 4K", page_icon="🎬")
 st.title("🎬 SOCIAL EXPERIMENT 4K DOWNLOADER")
 st.markdown("---")
@@ -16,51 +16,42 @@ if "YOUTUBE_COOKIES" in st.secrets:
     temp_cookie_file.write(st.secrets["YOUTUBE_COOKIES"])
     temp_cookie_file.close()
     cookie_file_path = temp_cookie_file.name
-    st.sidebar.success("✅ YouTube Access Active")
+    st.sidebar.success("✅ Challenge Solver Active")
 
 # --- 3. DOWNLOAD ENGINE ---
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-url = st.text_input("ENTER LINK (YT, TT, IG):", placeholder="Paste link here...")
+url = st.text_input("ENTER VIDEO LINK:", placeholder="YouTube, TikTok, Instagram...")
 
 if url:
     try:
-        # Determine platform to avoid "Cross-Talk"
         is_youtube = "youtube" in url or "youtu.be" in url
-        is_tiktok = "tiktok.com" in url
-        is_insta = "instagram.com" in url
-
+        
         ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'nocheckcertificate': True,
             'quiet': True,
+            # NEW FOR 2025: Tells yt-dlp to use Deno for the JS challenges
+            'javascript_runtime': 'deno', 
         }
 
-        # PLATFORM SPECIFIC RULES
         if is_youtube:
             if cookie_file_path:
                 ydl_opts['cookiefile'] = cookie_file_path
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-            }
+            ydl_opts['extractor_args'] = {'youtube': {'player_client': ['android', 'web']}}
         
-        elif is_tiktok:
-            # TikTok hates cookies and specific server headers
+        else: # TikTok/Insta specific bypass
             ydl_opts['http_headers'] = {
-                'User-Agent': 'com.zhiliaoapp.musically/2022405010 (Linux; U; Android 12; en_US; MP1605; Build/LMY48T; Cronet/TTNetVersion:5f74f74d 2022-05-01 QuicVersion:47535c59 2022-05-01)',
-                'Accept': '*/*',
-            }
-        
-        elif is_insta:
-            # Instagram requires a basic mobile header
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36 Instagram 128.0.0.26.128 Android',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate',
             }
 
-        with st.spinner("COMMUNICATING WITH SERVERS..."):
+        with st.spinner("SOLVING CHALLENGES... (This may take 30 seconds)"):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.cache.remove() 
                 info = ydl.extract_info(url, download=True)
@@ -81,6 +72,7 @@ if url:
 
     except Exception as e:
         st.error(f"ENGINE ERROR: {e}")
+        st.info("💡 REBOOT REQUIRED: If you just updated 'packages.txt', you MUST reboot the app from the Streamlit menu.")
     finally:
         if cookie_file_path and os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
