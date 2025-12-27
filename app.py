@@ -2,53 +2,62 @@ import streamlit as st
 import yt_dlp
 import os
 
-# Create a downloads folder if it doesn't exist
+# App interface settings
+st.set_page_config(page_title="Bootyra 4K Downloader", page_icon="🎬")
+st.title("🎬 Bootyra 4K Video Downloader")
+st.info("Paste a link below. This app uses cookies to bypass restrictions.")
+
+# Create downloads folder if it doesn't exist
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-def download_media(url):
-    save_path = 'downloads/%(title)s.%(ext)s'
-    
-    ydl_opts = {
-        # 'best' ensures we get the highest res, and we force mp4 for compatibility
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'outtmpl': save_path,
-        # This argument is key for TikTok no-watermark
-        'extractor_args': {'tiktok': {'web_api': True}},
-        'noplaylist': True,
-    }
+url = st.text_input("Video URL:", placeholder="https://www.youtube.com/watch?v=...")
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        return ydl.prepare_filename(info)
+if url:
+    try:
+        # Configuration for yt-dlp
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'merge_output_format': 'mp4',
+            'outtmpl': 'downloads/%(title)s.%(ext)s',
+            'cookiefile': 'cookies.txt',  # This file must exist in your GitHub repo
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+        }
 
-st.set_page_config(page_title="MediaX Ultra", page_icon="🚀")
-st.title("🚀 MediaX: 4K & No-Watermark Downloader")
-st.markdown("Works for **TikTok** (No Watermark), **YouTube** (4K), and **Instagram**.")
-
-url = st.text_input("Paste your link here:", placeholder="https://...")
-
-if st.button("Process Video"):
-    if url:
-        with st.spinner("Fetching best quality... this may take a minute for 4K."):
-            try:
-                # 1. Download to server/computer
-                file_path = download_media(url)
+        with st.spinner("Downloading... please wait."):
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extract info and download
+                info = ydl.extract_info(url, download=True)
+                # Determine the final filename
+                file_path = ydl.prepare_filename(info)
                 
-                # 2. Read the file into memory so the user can save it
-                with open(file_path, "rb") as f:
-                    video_bytes = f.read()
-                    
-                st.success("Video processed successfully!")
-                
-                # 3. Show the actual save button
-                st.download_button(
-                    label="💾 Save Video to Device",
-                    data=video_bytes,
-                    file_name=os.path.basename(file_path),
-                    mime="video/mp4"
-                )
-            except Exception as e:
-                st.error(f"Error: {e}")
-    else:
-        st.warning("Please enter a URL first.")
+                # Double check extension (merging often results in .mp4)
+                if not os.path.exists(file_path):
+                    base = os.path.splitext(file_path)[0]
+                    file_path = base + ".mp4"
+
+        st.success(f"Successfully downloaded: {info.get('title')}")
+
+        # Provide the download button
+        with open(file_path, "rb") as f:
+            st.download_button(
+                label="💾 Save Video to Device",
+                data=f,
+                file_name=os.path.basename(file_path),
+                mime="video/mp4"
+            )
+
+    except Exception as e:
+        st.error(f"Error: {e}")
+        st.warning("Make sure your cookies.txt is up to date in GitHub!")
+
+# Custom Sidebar
+with st.sidebar:
+    st.title("Settings")
+    st.write("Mode: Private/Invite-Only")
+    st.write("Engine: yt-dlp + FFmpeg")
