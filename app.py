@@ -3,7 +3,7 @@ import yt_dlp
 import os
 
 # App interface settings
-st.set_page_config(page_title="Sscial experiment 4K Downloader", page_icon="🎬")
+st.set_page_config(page_title="Social experiment 4K Downloader", page_icon="🎬")
 st.title("🎬 social experiment 4K Video Downloader")
 st.info("Paste a link below. This app uses cookies to bypass restrictions.")
 
