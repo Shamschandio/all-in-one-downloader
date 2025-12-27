@@ -7,7 +7,6 @@ import shutil
 # --- 1. APP CONFIG ---
 st.set_page_config(page_title="Universal Downloader", page_icon="🚀")
 st.title("🚀 Universal Video Downloader")
-st.info("YouTube, TikTok, and Instagram Support")
 
 # --- 2. COOKIE LOADER ---
 cookie_file_path = None
@@ -29,35 +28,40 @@ if url:
         is_youtube = "youtube" in url or "youtu.be" in url
         
         ydl_opts = {
-            # FIX: Use 'format_sort' instead of strict '-f'. 
-            # This avoids the "Requested format not available" error.
-            'format': 'bestvideo+bestaudio/best',
-            'format_sort': ['res:1080', 'ext:mp4:m4a'], 
+            # THE FIX: This format string is much more flexible. 
+            # It tries for 1080p MP4 first, but if that's "not available", 
+            # it grabs the best single-file (video+audio together) version.
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'nocheckcertificate': True,
             'quiet': True,
+            'noplaylist': True,
         }
 
         if is_youtube:
             if cookie_file_path:
                 ydl_opts['cookiefile'] = cookie_file_path
             
-            # Anti-bot headers
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+            # Using specific "Android" client args which are currently more stable for cloud IPs
+            ydl_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
             }
-            ydl_opts['extractor_args'] = {'youtube': {'player_client': ['mweb', 'ios']}}
+            ydl_opts['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            }
 
-        with st.spinner("Downloading the best available version..."):
+        with st.spinner("Bypassing restrictions and downloading..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Clear yt-dlp internal cache to avoid sticky 403/format errors
+                # Clear cache to reset any "Format Not Available" flags from YouTube
                 ydl.cache.remove()
                 
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
-                # Check for extension changes (like .mkv) during merging
+                # Check for extension changes during the merge process
                 if not os.path.exists(file_path):
                     base = os.path.splitext(file_path)[0]
                     for ext in ['.mp4', '.mkv', '.webm']:
@@ -72,9 +76,9 @@ if url:
                     data=f,
                     file_name=os.path.basename(file_path)
                 )
-            st.success("Download Ready!")
+            st.success("Success!")
         else:
-            st.error("Download finished but the file moved. Try again.")
+            st.error("File download failed. YouTube might be blocking this specific server.")
 
     except Exception as e:
         st.error(f"Error: {e}")
