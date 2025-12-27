@@ -18,7 +18,7 @@ if "YOUTUBE_COOKIES" in st.secrets:
     cookie_file_path = temp_cookie_file.name
     st.sidebar.success("✅ YouTube Vault Active")
 else:
-    st.sidebar.warning("⚠️ No Cookies in Vault. Some YouTube videos may fail.")
+    st.sidebar.warning("⚠️ No Cookies in Vault.")
 
 # --- 3. SIDEBAR TOOLS ---
 with st.sidebar:
@@ -39,14 +39,10 @@ if url:
     try:
         is_youtube = "youtube.com" in url or "youtu.be" in url
         
-        # WE USE SORTING INSTEAD OF STRICT FORMATS
-        # This prevents the 'Format not available' error
         ydl_opts = {
-            'format_sort': [
-                'res:1080',      # Prefer 1080p but accept others
-                'ext:mp4:m4a',   # Prefer MP4
-                'codec:h264:aac' # High compatibility
-            ],
+            # THE FIX: 'best' is the most compatible setting. 
+            # It avoids the 'Format not available' error by picking whatever works.
+            'format': 'bestvideo+bestaudio/best',
             'check_formats': True,
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
@@ -54,10 +50,11 @@ if url:
             'nocheckcertificate': True,
         }
 
-        # Apply YouTube-specific bypasses only if it's a YouTube link
         if is_youtube:
             if cookie_file_path:
                 ydl_opts['cookiefile'] = cookie_file_path
+            
+            # Additional bypasses for YouTube's recent security updates
             ydl_opts['extractor_args'] = {
                 'youtube': {
                     'player_client': ['ios', 'mweb', 'web'],
@@ -68,13 +65,12 @@ if url:
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
             }
 
-        with st.spinner("Processing... This can take 30-60 seconds for long videos."):
+        with st.spinner("Finding best available quality..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Extract info and download
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
-                # Double-check filename (sometimes extensions change during merging)
+                # Handling the case where merging changes the extension
                 if not os.path.exists(file_path):
                     base = os.path.splitext(file_path)[0]
                     for ext in ['.mp4', '.mkv', '.webm', '.3gp']:
@@ -91,13 +87,9 @@ if url:
                     mime="video/mp4"
                 )
             st.balloons()
-        else:
-            st.error("File was downloaded but could not be located on the server.")
             
     except Exception as e:
         st.error(f"Download Error: {e}")
-        st.info("Try another link or reboot the app if it persists.")
     finally:
-        # Securely remove temporary cookie file after use
         if cookie_file_path and os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
