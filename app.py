@@ -4,23 +4,23 @@ import os
 import tempfile
 import shutil
 
-# 1. App Configuration
+# --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="Social Experiment Downloader", page_icon="🎬")
 st.title("🎬 Social Experiment Downloader")
+st.markdown("Download from **YouTube, TikTok, or Instagram**.")
 
-# --- 2. LOAD COOKIES FROM SECRETS VAULT ---
+# --- 2. LOAD COOKIES FROM SECRETS ---
 cookie_file_path = None
 if "YOUTUBE_COOKIES" in st.secrets:
-    # Use 'w' mode to write the secret string into a real file for yt-dlp to read
     temp_cookie_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode='w')
     temp_cookie_file.write(st.secrets["YOUTUBE_COOKIES"])
     temp_cookie_file.close()
     cookie_file_path = temp_cookie_file.name
-    st.sidebar.success("✅ Cookies loaded from Vault")
+    st.sidebar.success("✅ YouTube Vault Active")
 else:
-    st.sidebar.error("❌ Cookies not found in Secrets!")
+    st.sidebar.warning("⚠️ No Cookies in Vault. Some YouTube videos may fail.")
 
-# --- 3. SIDEBAR TOOLS (ADMIN) ---
+# --- 3. SIDEBAR TOOLS ---
 with st.sidebar:
     st.header("Admin Tools")
     if st.button("🗑️ Clear Server Cache"):
@@ -28,69 +28,76 @@ with st.sidebar:
             shutil.rmtree("downloads")
             os.makedirs("downloads")
             st.success("Cache cleared!")
-        else:
-            st.info("Cache is already empty.")
 
-# --- 4. DOWNLOADER LOGIC ---
+# --- 4. MAIN DOWNLOADER LOGIC ---
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-url = st.text_input("Enter Video URL (YouTube, Shorts, etc):", placeholder="https://www.youtube.com/watch?v=...")
+url = st.text_input("Paste Link Here:", placeholder="YouTube, Shorts, TikTok, or Instagram...")
 
 if url:
     try:
-        # These options are tuned for 2025 YouTube changes
+        is_youtube = "youtube.com" in url or "youtu.be" in url
+        
+        # WE USE SORTING INSTEAD OF STRICT FORMATS
+        # This prevents the 'Format not available' error
         ydl_opts = {
-            # 'format_sort' is better than 'format'. It tells yt-dlp to find the 
-            # best quality automatically without crashing if a specific codec is missing.
             'format_sort': [
-                'res:1080',      # Prefer 1080p (stable for cloud)
-                'ext:mp4:m4a',   # Prefer MP4 container
-                'codec:h264:aac' # Prefer highly compatible codecs
+                'res:1080',      # Prefer 1080p but accept others
+                'ext:mp4:m4a',   # Prefer MP4
+                'codec:h264:aac' # High compatibility
             ],
-            'check_formats': True,          # Skips DRM-protected formats automatically
+            'check_formats': True,
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
-            'cookiefile': cookie_file_path,
             'quiet': True,
             'nocheckcertificate': True,
-            'extractor_args': {
+        }
+
+        # Apply YouTube-specific bypasses only if it's a YouTube link
+        if is_youtube:
+            if cookie_file_path:
+                ydl_opts['cookiefile'] = cookie_file_path
+            ydl_opts['extractor_args'] = {
                 'youtube': {
                     'player_client': ['ios', 'mweb', 'web'],
                     'player_js_version': 'actual'
                 }
-            },
-            'http_headers': {
+            }
+            ydl_opts['http_headers'] = {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-            },
-        }
+            }
 
-        with st.spinner("Analyzing and downloading..."):
+        with st.spinner("Processing... This can take 30-60 seconds for long videos."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extract info and download
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
-                # Handling cases where the extension might change during merging
+                # Double-check filename (sometimes extensions change during merging)
                 if not os.path.exists(file_path):
                     base = os.path.splitext(file_path)[0]
-                    for ext in ['.mp4', '.mkv', '.webm']:
+                    for ext in ['.mp4', '.mkv', '.webm', '.3gp']:
                         if os.path.exists(base + ext):
                             file_path = base + ext
                             break
 
-        with open(file_path, "rb") as f:
-            st.download_button(
-                label="💾 Save Video to Device",
-                data=f,
-                file_name=os.path.basename(file_path),
-                mime="video/mp4"
-            )
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                st.download_button(
+                    label="💾 Save Video to Device",
+                    data=f,
+                    file_name=os.path.basename(file_path),
+                    mime="video/mp4"
+                )
             st.balloons()
+        else:
+            st.error("File was downloaded but could not be located on the server.")
             
     except Exception as e:
         st.error(f"Download Error: {e}")
-        st.info("Tip: If it still fails, try a different video. Some 'Premium' or 'Music' content is strictly locked by YouTube.")
+        st.info("Try another link or reboot the app if it persists.")
     finally:
-        # Cleanup the temporary cookie file
+        # Securely remove temporary cookie file after use
         if cookie_file_path and os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
