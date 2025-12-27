@@ -7,7 +7,7 @@ import shutil
 # --- 1. APP CONFIG ---
 st.set_page_config(page_title="Universal Downloader", page_icon="🚀")
 st.title("🚀 Universal Video Downloader")
-st.info("Works for YouTube, TikTok, and Instagram.")
+st.info("YouTube, TikTok, and Instagram Support")
 
 # --- 2. COOKIE LOADER ---
 cookie_file_path = None
@@ -22,17 +22,17 @@ if "YOUTUBE_COOKIES" in st.secrets:
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-url = st.text_input("Paste your link here:")
+url = st.text_input("Paste Link Here:", placeholder="https://...")
 
 if url:
     try:
         is_youtube = "youtube" in url or "youtu.be" in url
         
         ydl_opts = {
-            # THE CRITICAL FIX: 
-            # This format string tries 1080p/720p first, 
-            # but 'b' at the end means "just give me the best single file if all else fails"
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            # FIX: Use 'format_sort' instead of strict '-f'. 
+            # This avoids the "Requested format not available" error.
+            'format': 'bestvideo+bestaudio/best',
+            'format_sort': ['res:1080', 'ext:mp4:m4a'], 
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'nocheckcertificate': True,
@@ -43,20 +43,21 @@ if url:
             if cookie_file_path:
                 ydl_opts['cookiefile'] = cookie_file_path
             
-            # Use Mobile Safari headers to bypass "Requested Format" blocks
+            # Anti-bot headers
             ydl_opts['http_headers'] = {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
             }
             ydl_opts['extractor_args'] = {'youtube': {'player_client': ['mweb', 'ios']}}
 
-        with st.spinner("Downloading... please wait."):
+        with st.spinner("Downloading the best available version..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Clear cache to prevent old errors from sticking
+                # Clear yt-dlp internal cache to avoid sticky 403/format errors
                 ydl.cache.remove()
+                
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
-                # Verify file extension (sometimes it ends up as .mkv or .webm)
+                # Check for extension changes (like .mkv) during merging
                 if not os.path.exists(file_path):
                     base = os.path.splitext(file_path)[0]
                     for ext in ['.mp4', '.mkv', '.webm']:
@@ -73,7 +74,7 @@ if url:
                 )
             st.success("Download Ready!")
         else:
-            st.error("Could not find the downloaded file.")
+            st.error("Download finished but the file moved. Try again.")
 
     except Exception as e:
         st.error(f"Error: {e}")
@@ -81,8 +82,8 @@ if url:
         if cookie_file_path and os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
 
-# --- 4. CLEANUP BUTTON ---
-if st.sidebar.button("Clear Server Cache"):
+# --- 4. SIDEBAR CLEANUP ---
+if st.sidebar.button("🗑️ Clear Cache"):
     shutil.rmtree("downloads")
     os.makedirs("downloads")
     st.sidebar.write("Cache Cleared.")
