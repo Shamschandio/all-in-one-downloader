@@ -4,15 +4,14 @@ import os
 import tempfile
 import shutil
 
-# 1. App Configuration & Title
+# 1. App Configuration
 st.set_page_config(page_title="Social Experiment Downloader", page_icon="🎬")
 st.title("🎬 Social Experiment Downloader")
 
 # --- 2. LOAD COOKIES FROM SECRETS VAULT ---
 cookie_file_path = None
 if "YOUTUBE_COOKIES" in st.secrets:
-    # Create a temporary file to act as the cookies.txt
-    # delete=False is important so the file stays until we manually remove it
+    # Use 'w' mode to write the secret string into a real file for yt-dlp to read
     temp_cookie_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode='w')
     temp_cookie_file.write(st.secrets["YOUTUBE_COOKIES"])
     temp_cookie_file.close()
@@ -36,13 +35,20 @@ with st.sidebar:
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-url = st.text_input("Enter Video URL:", placeholder="https://www.youtube.com/watch?v=...")
+url = st.text_input("Enter Video URL (YouTube, Shorts, etc):", placeholder="https://www.youtube.com/watch?v=...")
 
 if url:
     try:
-        # These options are specifically tuned to bypass 403 Forbidden errors
+        # These options are tuned for 2025 YouTube changes
         ydl_opts = {
-            'format': 'bestvideo+bestaudio/best',
+            # 'format_sort' is better than 'format'. It tells yt-dlp to find the 
+            # best quality automatically without crashing if a specific codec is missing.
+            'format_sort': [
+                'res:1080',      # Prefer 1080p (stable for cloud)
+                'ext:mp4:m4a',   # Prefer MP4 container
+                'codec:h264:aac' # Prefer highly compatible codecs
+            ],
+            'check_formats': True,          # Skips DRM-protected formats automatically
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'cookiefile': cookie_file_path,
@@ -56,19 +62,21 @@ if url:
             },
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
             },
         }
 
-        with st.spinner("Bypassing security and downloading..."):
+        with st.spinner("Analyzing and downloading..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
-                # Double check for the merged mp4 file
+                # Handling cases where the extension might change during merging
                 if not os.path.exists(file_path):
-                    file_path = os.path.splitext(file_path)[0] + ".mp4"
+                    base = os.path.splitext(file_path)[0]
+                    for ext in ['.mp4', '.mkv', '.webm']:
+                        if os.path.exists(base + ext):
+                            file_path = base + ext
+                            break
 
         with open(file_path, "rb") as f:
             st.download_button(
@@ -77,11 +85,12 @@ if url:
                 file_name=os.path.basename(file_path),
                 mime="video/mp4"
             )
+            st.balloons()
             
     except Exception as e:
         st.error(f"Download Error: {e}")
-        st.info("Tip: If you see a 403 error, try rebooting the app via the 'Manage App' menu.")
+        st.info("Tip: If it still fails, try a different video. Some 'Premium' or 'Music' content is strictly locked by YouTube.")
     finally:
-        # Cleanup the temporary cookie file to keep the server secure
+        # Cleanup the temporary cookie file
         if cookie_file_path and os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
