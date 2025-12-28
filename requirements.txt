@@ -1,3 +1,2 @@
 streamlit
-pytubefix
 yt-dlp
