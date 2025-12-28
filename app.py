@@ -22,6 +22,7 @@ if url:
             cookie_path = t.name
 
         ydl_opts = {
+            # Try 4K, but accept best available to prevent "Format Not Available"
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
@@ -29,31 +30,31 @@ if url:
             'nocheckcertificate': True,
             'quiet': True,
             
-            # THE 403 NUCLEAR BYPASS (DEC 2025)
+            # 2025 SMART TV BYPASS:
+            # Android TV and YouTube Music clients are currently bypassing the 403 blocks
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android', 'mweb'],
-                    # This helps bypass the initial 403 handshake
-                    'skip': ['web'],
+                    'player_client': ['android_embedded', 'tv', 'mweb'],
+                    'player_skip': ['web', 'ios'],
                 }
             },
-            # Masking the request to look like a direct Google search referral
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.google.com/',
-                'Accept-Language': 'en-US,en;q=0.9',
+                'User-Agent': 'Mozilla/5.0 (Android 14; TV; rv:120.0) Gecko/120.0 Firefox/120.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Referer': 'https://www.youtube.com/tv',
             }
         }
 
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
 
-        with st.spinner("CRACKING ENCRYPTION..."):
+        with st.spinner("INITIATING SMART TV BYPASS..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.cache.remove()
+                ydl.cache.remove() # Important to clear previous 403 flags
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
+                # Check for merged file extension variations
                 if not os.path.exists(file_path):
                     base = os.path.splitext(file_path)[0]
                     for ext in ['.mp4', '.mkv', '.webm']:
@@ -65,11 +66,11 @@ if url:
             with open(file_path, "rb") as f:
                 st.download_button(label="💾 DOWNLOAD FILE", data=f, file_name=os.path.basename(file_path))
             st.balloons()
-            st.success("BYPASS SUCCESSFUL")
+            st.success("ACCESS GRANTED")
 
     except Exception as e:
         st.error(f"ENGINE ERROR: {e}")
-        st.info("💡 403 FIX: Your cookies might be 'stale'. Try exporting them again from an Incognito tab where you are logged into YouTube.")
+        st.info("💡 IP BLOCK: If you still see 403, YouTube has banned this Streamlit IP. Please click 'Reboot' in the sidebar menu.")
     finally:
         if cookie_path and os.path.exists(cookie_path):
             os.remove(cookie_path)
