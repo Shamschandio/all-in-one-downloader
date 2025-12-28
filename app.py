@@ -1,49 +1,75 @@
 import streamlit as st
 from pytubefix import YouTube
+import yt_dlp
 import os
+import shutil
 
-# --- BRANDING ---
+# --- 1. SETUP & BRANDING ---
 st.set_page_config(page_title="SOCIAL EXPERIMENT 4K", page_icon="🎬")
 st.title("🎬 SOCIAL EXPERIMENT 4K")
+st.markdown("---")
 
-url = st.text_input("PASTE YOUTUBE LINK:")
+# Create a clean downloads folder
+if not os.path.exists("downloads"):
+    os.makedirs("downloads")
+
+url = st.text_input("PASTE LINK (YOUTUBE OR TIKTOK):", placeholder="https://...")
 
 if url:
     try:
-        with st.spinner("CONNECTING TO SOCIAL ENGINE..."):
-            # We remove 'cookiefile' and 'use_oauth' to avoid the errors you saw
-            # pytubefix will now use its default 'WEB' client which is currently stable
-            yt = YouTube(url)
-            
-            # This line 'pings' YouTube to see if we are blocked
-            st.subheader(f"📹 {yt.title}")
-            
-            # We grab the highest resolution MP4 available (720p/1080p)
-            # This is the 'Progressive' stream which is easiest for Streamlit to handle
-            video = yt.streams.filter(progressive=True, file_extension='mp4').get_highest_resolution()
-            
-            if video:
-                st.info(f"Resolution: {video.resolution} | Size: {round(video.filesize_mb, 2)} MB")
+        # --- TIKTOK ENGINE (using yt-dlp) ---
+        if "tiktok.com" in url:
+            with st.spinner("🚀 BYPASSING TIKTOK..."):
+                ydl_opts = {
+                    'format': 'best',
+                    'outtmpl': 'downloads/%(id)s.%(ext)s',
+                    'nocheckcertificate': True,
+                    'quiet': True,
+                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    file_path = ydl.prepare_filename(info)
                 
-                # Create downloads folder if it doesn't exist
-                if not os.path.exists("downloads"):
-                    os.makedirs("downloads")
+                if os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        st.download_button("💾 DOWNLOAD TIKTOK VIDEO", f, file_name=os.path.basename(file_path))
+                    st.success("TIKTOK READY!")
+
+        # --- YOUTUBE ENGINE (using pytubefix + iOS Stealth) ---
+        elif "youtube.com" in url or "youtu.be" in url:
+            with st.spinner("🕵️ YOUTUBE STEALTH MODE..."):
+                # 'client=IOS' is the current strongest bypass for 403 errors
+                yt = YouTube(url, client='IOS')
+                
+                st.subheader(f"📹 {yt.title}")
+                
+                # Get the highest resolution MP4 (Progressive)
+                video = yt.streams.filter(progressive=True, file_extension='mp4').get_highest_resolution()
+                
+                if video:
+                    st.info(f"Resolution: {video.resolution} | Size: {round(video.filesize_mb, 2)} MB")
                     
-                path = video.download(output_path="downloads")
-                
-                with open(path, "rb") as f:
-                    st.download_button(
-                        label="💾 DOWNLOAD NOW",
-                        data=f,
-                        file_name=os.path.basename(path),
-                        mime="video/mp4"
-                    )
-                st.balloons()
-            else:
-                st.error("No high-quality MP4 stream found for this video.")
+                    # Download to local folder
+                    out_path = video.download(output_path="downloads")
+                    
+                    with open(out_path, "rb") as f:
+                        st.download_button("💾 DOWNLOAD YOUTUBE VIDEO", f, file_name=os.path.basename(out_path))
+                    st.balloons()
+                else:
+                    st.error("No compatible MP4 found. This video might be restricted.")
+
+        else:
+            st.warning("⚠️ Please enter a valid YouTube or TikTok link.")
 
     except Exception as e:
-        # If this fails with a 403, we know it's a hard IP block
         st.error(f"ENGINE ERROR: {e}")
         if "403" in str(e):
-            st.warning("⚠️ YouTube is blocking this server's IP. Please 'Reboot' the app in the Manage App menu to get a new IP.")
+            st.warning("🚨 IP BLOCK DETECTED. Please go to 'Manage App' -> 'Reboot' to get a fresh IP address.")
+
+# --- CLEANUP (Optional) ---
+if st.button("🗑️ Clear Cache"):
+    if os.path.exists("downloads"):
+        shutil.rmtree("downloads")
+        os.makedirs("downloads")
+    st.success("Cache Cleared!")
