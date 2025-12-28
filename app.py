@@ -1,45 +1,41 @@
 import streamlit as st
-import requests
+from pytubefix import YouTube
+from pytubefix.cli import on_progress
+import os
 
 # --- BRANDING ---
 st.set_page_config(page_title="SOCIAL EXPERIMENT 4K", page_icon="🎬")
 st.title("🎬 SOCIAL EXPERIMENT 4K")
-st.markdown("### RESTORED BYPASS MODE")
+st.markdown("### EMERGENCY BYPASS MODE (DEC 2025)")
 
-url = st.text_input("PASTE LINK (YouTube, TikTok, etc):")
+url = st.text_input("ENTER VIDEO LINK:", placeholder="https://www.youtube.com/watch?v=...")
 
 if url:
     try:
-        with st.spinner("COMMUNICATING WITH BYPASS SERVER..."):
-            # We use the Cobalt API (a public reliable bypass)
-            api_url = "https://api.cobalt.tools/api/json"
+        with st.spinner("INITIATING HANDSHAKE..."):
+            # 'use_oauth=True' is the secret weapon for 2025. 
+            # It will ask you to authorize once via a code, then never again.
+            yt = YouTube(url, use_oauth=True, allow_oauth_cache=True)
             
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            }
+            st.subheader(f"📹 {yt.title}")
             
-            # Requesting 1080p/4k quality
-            payload = {
-                "url": url,
-                "videoQuality": "1080", # You can try "1440" or "2160" for 4K
-                "filenameStyle": "pretty"
-            }
+            # Filtering for the highest resolution MP4
+            video = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
             
-            response = requests.post(api_url, json=payload, headers=headers)
-            data = response.json()
-            
-            if data.get("status") == "stream":
-                download_link = data.get("url")
-                st.video(download_link) # Preview
-                st.markdown(f'[💾 CLICK TO DOWNLOAD VIDEO]({download_link})')
+            if video:
+                out_file = video.download(output_path="downloads")
+                
+                with open(out_file, "rb") as f:
+                    st.download_button(
+                        label="💾 DOWNLOAD VIDEO",
+                        data=f,
+                        file_name=os.path.basename(out_file),
+                        mime="video/mp4"
+                    )
                 st.balloons()
-            elif data.get("status") == "error":
-                st.error(f"BYPASS ERROR: {data.get('text')}")
             else:
-                st.error("Unexpected response from bypass server.")
+                st.error("No compatible MP4 streams found.")
 
     except Exception as e:
-        st.error(f"SYSTEM ERROR: {e}")
-
-st.info("NOTE: This method uses an external bypass engine to skip YouTube's 403 blocks.")
+        st.error(f"ENGINE ERROR: {e}")
+        st.info("💡 If this is your first time today, check the Streamlit logs for a 6-digit 'Device Code' to authorize the app.")
