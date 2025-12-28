@@ -2,19 +2,19 @@ import streamlit as st
 import yt_dlp
 from pytubefix import YouTube
 import os
-from moviepy.editor import VideoFileClip, AudioFileClip
+import subprocess
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="SOCIAL EXPERIMENT: HD PRO", page_icon="🎬")
 st.title("🎬 SOCIAL EXPERIMENT: HD PRO")
 
-# --- COOKIE HANDLING (For YouTube Login Error) ---
+# --- COOKIE HANDLING ---
 cookie_path = "youtube_cookies.txt"
 if "YOUTUBE_COOKIES" in st.secrets:
     with open(cookie_path, "w") as f:
         f.write(st.secrets["YOUTUBE_COOKIES"])
 
-# --- SESSION STATE ---
+# --- UI LAYOUT ---
 if 'url_input' not in st.session_state:
     st.session_state.url_input = ""
 
@@ -31,51 +31,50 @@ with col2:
 
 if submit and url:
     try:
-        # --- TIKTOK (Best Quality & Bitrate) ---
+        # Create unique folder for this download
+        if not os.path.exists("downloads"):
+            os.makedirs("downloads")
+
+        # --- TIKTOK (High Bitrate) ---
         if "tiktok.com" in url:
-            with st.spinner("🚀 FETCHING TIKTOK (MAX BITRATE)..."):
+            with st.spinner("🚀 FETCHING TIKTOK HD..."):
                 ydl_opts = {
-                    'format': 'bestvideo+bestaudio/best', # Force merge best video + best stereo audio
+                    'format': 'bestvideo+bestaudio/best',
                     'outtmpl': 'downloads/%(id)s.%(ext)s',
                     'merge_output_format': 'mp4',
-                    'quiet': True,
                 }
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=True)
-                    file_path = ydl.prepare_filename(info)
+                    f_path = ydl.prepare_filename(info)
                 
-                with open(file_path, "rb") as f:
+                with open(f_path, "rb") as f:
                     st.download_button("💾 DOWNLOAD HD TIKTOK", f, file_name="tiktok_hd.mp4")
 
-        # --- YOUTUBE (High-Res + Stereo Audio Merger) ---
+        # --- YOUTUBE (Stereo + 1080p/4K Merger) ---
         elif "youtube.com" in url or "youtu.be" in url:
-            with st.spinner("🕵️ BYPASSING LOGIN & PREPARING HD..."):
-                # Use the cookie file if it exists to fix the 'Login Required' error
+            with st.spinner("🕵️ EXTRACTING HD STREAMS..."):
                 yt = YouTube(url, use_oauth=False, cookiefile=cookie_path if os.path.exists(cookie_path) else None)
                 
-                st.write(f"📹 **Title:** {yt.title}")
+                # Get Best Video (No Audio) & Best Audio (Stereo)
+                v_stream = yt.streams.filter(only_video=True, file_extension='mp4').order_by('resolution').desc().first()
+                a_stream = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
 
-                # 1. Download Highest Quality Video (No Audio)
-                video_stream = yt.streams.filter(only_video=True, file_extension='mp4').order_by('resolution').desc().first()
-                # 2. Download Highest Quality Audio (Stereo, 128kbps+)
-                audio_stream = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
+                if v_stream and a_stream:
+                    v_file = v_stream.download(filename="v_temp.mp4")
+                    a_file = a_stream.download(filename="a_temp.mp4")
 
-                if video_stream and audio_stream:
-                    v_file = video_stream.download(filename="video_temp.mp4")
-                    a_file = audio_stream.download(filename="audio_temp.mp3")
+                    st.info(f"Merging: {v_stream.resolution} Video + {a_stream.abr} Stereo Audio")
+                    
+                    # --- THE PRO MERGER (Direct FFmpeg) ---
+                    # This is much faster than MoviePy and doesn't crash
+                    output_name = "final_hd_video.mp4"
+                    cmd = f'ffmpeg -y -i "{v_file}" -i "{a_file}" -c copy -map 0:v:0 -map 1:a:0 "{output_name}"'
+                    subprocess.run(cmd, shell=True)
 
-                    st.info(f"Merging Video ({video_stream.resolution}) + Stereo Audio ({audio_stream.abr})...")
-
-                    # 3. Use MoviePy to merge them
-                    video_clip = VideoFileClip(v_file)
-                    audio_clip = AudioFileClip(a_file)
-                    final_clip = video_clip.set_audio(audio_clip)
-                    final_clip.write_videofile("final_output.mp4", codec="libx264", audio_codec="aac")
-
-                    with open("final_output.mp4", "rb") as f:
+                    with open(output_name, "rb") as f:
                         st.download_button("💾 DOWNLOAD FULL HD (STEREO)", f, file_name=f"{yt.title}.mp4")
                     st.balloons()
-                
+
     except Exception as e:
         st.error(f"❌ ERROR: {e}")
 
