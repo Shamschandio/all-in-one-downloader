@@ -10,7 +10,7 @@ st.title("🎬 SOCIAL EXPERIMENT 4K DOWNLOADER")
 st.markdown("---")
 
 # --- 2. ENGINE ---
-url = st.text_input("PASTE LINK HERE:", placeholder="YouTube, TikTok, Instagram...")
+url = st.text_input("ENTER VIDEO LINK:", placeholder="Paste link here...")
 
 if url:
     try:
@@ -22,26 +22,34 @@ if url:
             cookie_path = t.name
 
         ydl_opts = {
-            'format': 'bestvideo+bestaudio/best', 
+            # Try 4K, but accept any quality to avoid "Format Not Available"
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'cookiefile': cookie_path,
             'nocheckcertificate': True,
             'quiet': True,
-        }
-
-        # TikTok Specific Bypasses
-        if "tiktok.com" in url:
-            ydl_opts['extractor_args'] = {'tiktok': {'web_client': True}}
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-                'Accept': '*/*',
+            
+            # THE 403 BYPASS PACK (DEC 2025)
+            'extractor_args': {
+                'youtube': {
+                    # 'android' and 'mweb' are currently the only ones bypassing 403 on cloud IPs
+                    'player_client': ['android', 'mweb'],
+                    'player_skip': ['web', 'ios'] 
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.google.com/',
             }
+        }
 
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
 
-        with st.spinner("SOCIAL EXPERIMENT IN PROGRESS..."):
+        with st.spinner("BYPASSING YOUTUBE SECURITY..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.cache.remove()
                 info = ydl.extract_info(url, download=True)
@@ -58,16 +66,11 @@ if url:
             with open(file_path, "rb") as f:
                 st.download_button(label="💾 DOWNLOAD FILE", data=f, file_name=os.path.basename(file_path))
             st.balloons()
-            st.success("DOWNLOAD READY")
+            st.success("BYPASS SUCCESSFUL")
 
     except Exception as e:
         st.error(f"ENGINE ERROR: {e}")
+        st.info("💡 REBOOT TIP: If this persists, click 'Reboot' in the Manage App menu to get a new IP address.")
     finally:
         if cookie_path and os.path.exists(cookie_path):
             os.remove(cookie_path)
-
-if st.sidebar.button("🗑️ RESET SYSTEM"):
-    if os.path.exists("downloads"):
-        shutil.rmtree("downloads")
-        os.makedirs("downloads")
-    st.sidebar.write("Cache Cleared.")
