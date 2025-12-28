@@ -7,7 +7,7 @@ import subprocess
 st.set_page_config(page_title="SOCIAL EXPERIMENT: FINAL", page_icon="🎬")
 st.title("🎬 SOCIAL EXPERIMENT: FINAL")
 
-# --- 1. SESSION STATE ---
+# --- 1. UI SETUP ---
 if 'url_input' not in st.session_state:
     st.session_state.url_input = ""
 
@@ -27,16 +27,15 @@ if submit and url:
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
 
-        # --- TIKTOK: FORCING HIGH-BITRATE STEREO ---
+        # --- TIKTOK: FORCING STEREO 256kbps ---
         if "tiktok.com" in url:
             with st.spinner("🚀 EXTRACTING MAX TIKTOK AUDIO..."):
                 ydl_opts = {
-                    # This tells yt-dlp to find the best video and best audio separately and merge
                     'format': 'bestvideo+bestaudio/best',
                     'outtmpl': 'downloads/%(id)s.%(ext)s',
                     'merge_output_format': 'mp4',
                     'postprocessor_args': [
-                        '-c:a', 'aac', '-b:a', '256k', # Force 256kbps Stereo Audio
+                        '-c:a', 'aac', '-b:a', '256k', '-ac', '2' # FORCE STEREO 256K
                     ],
                 }
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -46,13 +45,13 @@ if submit and url:
                 with open(f_path, "rb") as f:
                     st.download_button("💾 DOWNLOAD 4K TIKTOK (STEREO)", f, file_name="tiktok_hd_pro.mp4")
 
-        # --- YOUTUBE: THE TV CLIENT BYPASS ---
+        # --- YOUTUBE: THE "TV" BYPASS ---
         elif "youtube.com" in url or "youtu.be" in url:
             with st.spinner("🕵️ TV-CLIENT HANDSHAKE (BYPASSING 403)..."):
-                # We use the 'TV' client which is currently the most resistant to 403 blocks
+                # 'TV' client is currently the only one YouTube doesn't 403-block on Cloud
                 yt = YouTube(url, client='TV')
                 
-                # Manual cookie injection if available in secrets
+                # Check for cookies in Secrets
                 if "YOUTUBE_COOKIES" in st.secrets:
                     with open("temp_cookies.txt", "w") as f:
                         f.write(st.secrets["YOUTUBE_COOKIES"])
@@ -60,7 +59,7 @@ if submit and url:
 
                 st.write(f"📹 **Video:** {yt.title}")
 
-                # Get Adaptive Streams
+                # Grabbing the BEST available adaptive streams
                 v_stream = yt.streams.filter(only_video=True, file_extension='mp4').order_by('resolution').desc().first()
                 a_stream = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
 
@@ -68,7 +67,7 @@ if submit and url:
                     v_temp = v_stream.download(filename="v_temp.mp4")
                     a_temp = a_stream.download(filename="a_temp.mp4")
 
-                    # MERGE with High Bitrate Audio Mapping
+                    # FORCE MERGE INTO STEREO
                     output_name = f"yt_hd_{yt.video_id}.mp4"
                     cmd = f'ffmpeg -y -i "{v_temp}" -i "{a_temp}" -c:v copy -c:a aac -b:a 256k -ac 2 "{output_name}"'
                     subprocess.run(cmd, shell=True)
@@ -79,7 +78,7 @@ if submit and url:
 
     except Exception as e:
         if "403" in str(e):
-            st.error("🚨 403 FORBIDDEN: This Streamlit IP is temporarily blocked by YouTube.")
-            st.info("The code is correct, but you MUST click 'Reboot App' in the Manage App menu to get a new IP.")
+            st.error("🚨 403 FORBIDDEN: Streamlit's IP is currently blocked.")
+            st.info("The code is correct. To fix this, you MUST go to 'Manage App' -> 'Reboot App' to get a new IP address.")
         else:
             st.error(f"❌ ERROR: {e}")
