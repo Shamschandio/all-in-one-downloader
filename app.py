@@ -22,10 +22,6 @@ if url:
             cookie_path = t.name
 
         ydl_opts = {
-            # THE FIX: This format string is 'Elastic'.
-            # 1. It tries to merge the best mp4 video and m4a audio.
-            # 2. If merging fails (no ffmpeg or hidden formats), it grabs the 'best' single file.
-            # 3. If that fails, it grabs 'any' working stream.
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'outtmpl': 'downloads/%(title)s.%(ext)s',
@@ -33,25 +29,31 @@ if url:
             'nocheckcertificate': True,
             'quiet': True,
             
-            # Mobile clients are seeing more formats than Web clients right now
+            # THE 403 NUCLEAR BYPASS (DEC 2025)
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'mweb'],
+                    'player_client': ['ios', 'android', 'mweb'],
+                    # This helps bypass the initial 403 handshake
+                    'skip': ['web'],
                 }
             },
+            # Masking the request to look like a direct Google search referral
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.google.com/',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
         }
 
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
 
-        with st.spinner("SEARCHING FOR BEST AVAILABLE QUALITY..."):
+        with st.spinner("CRACKING ENCRYPTION..."):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.cache.remove()
-                # Extract info first to see what formats YouTube is actually showing us
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
                 
-                # Check for merged file extension variations
                 if not os.path.exists(file_path):
                     base = os.path.splitext(file_path)[0]
                     for ext in ['.mp4', '.mkv', '.webm']:
@@ -63,11 +65,11 @@ if url:
             with open(file_path, "rb") as f:
                 st.download_button(label="💾 DOWNLOAD FILE", data=f, file_name=os.path.basename(file_path))
             st.balloons()
-            st.success(f"SUCCESS: Downloaded as {info.get('format_note', 'Best Available')}")
+            st.success("BYPASS SUCCESSFUL")
 
     except Exception as e:
-        # If even the elastic format fails, it's a hard block
         st.error(f"ENGINE ERROR: {e}")
+        st.info("💡 403 FIX: Your cookies might be 'stale'. Try exporting them again from an Incognito tab where you are logged into YouTube.")
     finally:
         if cookie_path and os.path.exists(cookie_path):
             os.remove(cookie_path)
@@ -75,4 +77,4 @@ if url:
 if st.sidebar.button("🗑️ RESET CACHE"):
     shutil.rmtree("downloads")
     os.makedirs("downloads")
-    st.sidebar.write("Cache Cleared.")
+    st.sidebar.write("System Reset.")
